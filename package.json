@@ -4,9 +4,9 @@
   "description": "When a push event occurs, upload the source file to Transifex and commit the translation file to GitHub.",
   "author": "s520 <sony.pcv.s520@gmail.com> (https://github.com/s520)",
   "license": "ISC",
-  "repository": "https://github.com//txgh-js-bot.git",
-  "homepage": "https://github.com//txgh-js-bot",
-  "bugs": "https://github.com//txgh-js-bot/issues",
+  "repository": "https://github.com/s520/txgh-js-bot.git",
+  "homepage": "https://github.com/s520/txgh-js-bot",
+  "bugs": "https://github.com/s520/txgh-js-bot/issues",
   "keywords": [
     "probot",
     "github",
@@ -20,7 +20,9 @@
     "test:watch": "jest --watch --notify --notifyMode=change --coverage"
   },
   "dependencies": {
-    "probot": "^7.2.0"
+    "probot": "^7.2.0",
+    "extend": "^3.0.2",
+    "transifex-js-client": "git+https://github.com/s520/transifex-js-client.git"
   },
   "devDependencies": {
     "jest": "^22.4.3",

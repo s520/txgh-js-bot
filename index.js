@@ -74,7 +74,7 @@ function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
 
 function UploadResource(resourcePath, content) {
     return new Promise(async (resolve, reject) => {
-        var resourceSlug = resourcePath.replace(pathToSlug, "-");
+        var resourceSlug = resourcePath.replace(fileFilter, "").replace(pathToSlug, "-");
         try {
             await txApi.resource(TX_PROJECT_SLUG, resourceSlug);
             await txApi.resourceSourceStringsUpdate(TX_PROJECT_SLUG, resourceSlug, {
@@ -104,7 +104,7 @@ function AllResources(app, githubApi, repoOwner, repoName, headTreeSha) {
         for (let file of tree.data.tree) {
             app.log("process each tree entry: " + file.path);
             if (file.path.match(fileFilter) && file.path.match(extFilter)) {
-                allResources[file.path] = file.path.replace(pathToSlug, "-");
+                allResources[file.path] = file.path.replace(fileFilter, "").replace(pathToSlug, "-");
             }
         }
         resolve(allResources);

@@ -10,6 +10,7 @@ const TX_TARGET_LANG = process.env.TX_TARGET_LANG.split(",");
 const TX_TARGET_PATH = process.env.TX_TARGET_PATH;
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH;
 
+const stringReplaceAsync = require('string-replace-async');
 const TransifexApi = require('transifex-js-client');
 const txApi = TransifexApi({
     username: TX_USERNAME,
@@ -72,9 +73,17 @@ function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
     });
 }
 
+function GenarateResourceSlug(resourcePath) {
+    return new Promise(async (resolve, reject) => {
+        const resource = await stringReplaceAsync(resourcePath, fileFilter, "");
+        const resourceSlug = await stringReplaceAsync(resource, pathToSlug, "-");
+        resolve(resourceSlug);
+    });
+}
+
 function UploadResource(resourcePath, content) {
     return new Promise(async (resolve, reject) => {
-        var resourceSlug = resourcePath.replace(fileFilter, "").replace(pathToSlug, "-");
+        const resourceSlug = await GenarateResourceSlug(resourcePath);
         try {
             await txApi.resource(TX_PROJECT_SLUG, resourceSlug);
             await txApi.resourceSourceStringsUpdate(TX_PROJECT_SLUG, resourceSlug, {
@@ -104,7 +113,7 @@ function AllResources(app, githubApi, repoOwner, repoName, headTreeSha) {
         for (let file of tree.data.tree) {
             app.log("process each tree entry: " + file.path);
             if (file.path.match(fileFilter) && file.path.match(extFilter)) {
-                allResources[file.path] = file.path.replace(fileFilter, "").replace(pathToSlug, "-");
+                allResources[file.path] = await GenarateResourceSlug(file.path);
             }
         }
         resolve(allResources);

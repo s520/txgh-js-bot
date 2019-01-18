@@ -116,6 +116,7 @@ function AllTranslations(app, resources) {
         var allTranslations = {};
         app.log("process get all translations");
         for (let resourcePath of Object.keys(resources)) {
+            app.log("process get translations: " + resourcePath);
             for (let lang of TX_TARGET_LANG) {
                 app.log("process get translations: " + lang);
                 if (lang != TX_RESOURCE_LANG) {

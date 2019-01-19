@@ -1,3 +1,4 @@
+"use strict";
 const TX_BASE_URL = process.env.TX_BASE_URL;
 const TX_USERNAME = process.env.TX_USERNAME;
 const TX_PASSWORD = process.env.TX_PASSWORD;
@@ -10,8 +11,8 @@ const TX_TARGET_LANG = process.env.TX_TARGET_LANG.split(",");
 const TX_TARGET_PATH = process.env.TX_TARGET_PATH;
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH;
 
-const stringReplaceAsync = require('string-replace-async');
-const TransifexApi = require('transifex-js-client');
+const stringReplaceAsync = require("string-replace-async");
+const TransifexApi = require("transifex-js-client");
 const txApi = TransifexApi({
     username: TX_USERNAME,
     password: TX_PASSWORD,
@@ -29,65 +30,29 @@ const pathToSlug = new RegExp("/|\\.", "g");
  * @returns {Object.<string, string>} キーがファイルパス、値がgit treeのSHA、のオブジェクト
  */
 function AddModResources(app, commits) {
-    var addModResources = {};
-    for (let commit of commits) {
+    const addModResources = {};
+    for (const commit of commits) {
         app.log("processing commit");
-        for (let file of commit.added) {
+        for (const file of commit.added) {
             app.log("processing added file: " + file);
             if (file.match(fileFilter) && file.match(extFilter)) {
                 addModResources[file] = commit.tree_id;
             }
         }
-        for (let file of commit.modified) {
+        for (const file of commit.modified) {
             app.log("processing modified file: " + file);
             if (file.match(fileFilter) && file.match(extFilter)) {
                 addModResources[file] = commit.tree_id;
             }
         }
     }
-    return addModResources
-}
-
-/**
- * 対象ファイルをGitHubから取得しTransifexへアップロードする関数
- * @param {function(): string} app - GitHub App
- * @param {Object} githubApi - GitHubAPI
- * @param {string} repoOwner - リポジトリのオーナー名
- * @param {string} repoName - リポジトリ名
- * @param {Object.<string, string>} resources - キーがファイルパス、値がgit treeのSHA、のオブジェクト
- * @returns
- */
-async function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
-    for (let resourcePath of Object.keys(resources)) {
-        app.log("process updated resource");
-        const tree = await githubApi.gitdata.getTree({
-            owner: repoOwner,
-            repo: repoName,
-            tree_sha: resources[resourcePath],
-            recursive: 1
-        });
-        for (let file of tree.data.tree) {
-            app.log("process each tree entry: " + file.path);
-            if (file.path == resourcePath) {
-                app.log("process resource file: " + resourcePath);
-                const blob = await githubApi.gitdata.getBlob({
-                    owner: repoOwner,
-                    repo: repoName,
-                    file_sha: file.sha
-                });
-                var content = new Buffer(blob.data.content, blob.data.encoding).toString();
-                await UploadResource(resourcePath, content);
-                app.log("updated tx_resource: " + resourcePath);
-            }
-        }
-    }
-    return;
+    return addModResources;
 }
 
 /**
  * ファイルパスからTransifexのリソースSlugを生成する関数
  * @param {string} resourcePath - ファイルパス
- * @returns {string} TransifexのリソースSlug
+ * @returns {Promise<string>} TransifexのリソースSlug
  */
 async function GenarateResourceSlug(resourcePath) {
     const resource = await stringReplaceAsync(resourcePath, fileFilter, "");
@@ -99,7 +64,7 @@ async function GenarateResourceSlug(resourcePath) {
  * Transifexに存在しないファイルは新規に作成し、既存のファイルはアップデートする関数
  * @param {string} resourcePath - リソースファイルのファイルパス
  * @param {string} content - リソースファイルの中身
- * @returns
+ * @returns {Promise<void>} Promiseのインスタンス
  */
 async function UploadResource(resourcePath, content) {
     const resourceSlug = await GenarateResourceSlug(resourcePath);
@@ -109,15 +74,50 @@ async function UploadResource(resourcePath, content) {
                 slug: resourceSlug,
                 name: resourcePath,
                 i18n_type: TX_RESOURCE_TYPE,
-                content: content
+                content
             });
-            return;
-        })
+        });
     await txApi.resourceSourceStringsUpdate(TX_PROJECT_SLUG, resourceSlug, {
-        content: content
+        content
     });
-    return;
 }
+
+/**
+ * 対象ファイルをGitHubから取得しTransifexへアップロードする関数
+ * @param {function(): string} app - GitHub App
+ * @param {Object} githubApi - GitHubAPI
+ * @param {string} repoOwner - リポジトリのオーナー名
+ * @param {string} repoName - リポジトリ名
+ * @param {Object.<string, string>} resources - キーがファイルパス、値がgit treeのSHA、のオブジェクト
+ * @returns {Promise<void>} Promiseのインスタンス
+ */
+async function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
+    for (const resourcePath of Object.keys(resources)) {
+        app.log("process updated resource");
+        const tree = await githubApi.gitdata.getTree({
+            owner: repoOwner,
+            repo: repoName,
+            tree_sha: resources[resourcePath],
+            recursive: 1
+        });
+        for (const file of tree.data.tree) {
+            app.log("process each tree entry: " + file.path);
+            if (file.path == resourcePath) {
+                app.log("process resource file: " + resourcePath);
+                const blob = await githubApi.gitdata.getBlob({
+                    owner: repoOwner,
+                    repo: repoName,
+                    file_sha: file.sha
+                });
+                const content = Buffer.from(blob.data.content, blob.data.encoding).toString();
+
+                await UploadResource(resourcePath, content);
+                app.log("updated tx_resource: " + resourcePath);
+            }
+        }
+    }
+}
+
 
 /**
  * ヘッドコミットのgit treeに存在する対象ファイルのファイルパスとリソースSlugを取得する関数
@@ -126,17 +126,17 @@ async function UploadResource(resourcePath, content) {
  * @param {string} repoOwner - リポジトリのオーナー名
  * @param {string} repoName - リポジトリ名
  * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
- * @returns {Object.<string, string>} キーがファイルパス、値がリソースSlug、のオブジェクト
+ * @returns {Promise<Object.<string, string>>} キーがファイルパス、値がリソースSlug、のオブジェクト
  */
 async function AllResources(app, githubApi, repoOwner, repoName, headTreeSha) {
-    var allResources = {};
+    const allResources = {};
     const tree = await githubApi.gitdata.getTree({
         owner: repoOwner,
         repo: repoName,
         tree_sha: headTreeSha,
         recursive: 1
     });
-    for (let file of tree.data.tree) {
+    for (const file of tree.data.tree) {
         app.log("process each tree entry: " + file.path);
         if (file.path.match(fileFilter) && file.path.match(extFilter)) {
             allResources[file.path] = await GenarateResourceSlug(file.path);
@@ -149,14 +149,14 @@ async function AllResources(app, githubApi, repoOwner, repoName, headTreeSha) {
  * Transifexから対象ファイルの翻訳ファイルを取得する関数
  * @param {function(): string} app - GitHub App
  * @param {Object.<string, string>} resources - キーがファイルパス、値がリソースSlug、のオブジェクト
- * @returns {Object.<string, string>} キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
+ * @returns {Promise<Object.<string, string>>} キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
  */
 async function AllTranslations(app, resources) {
-    var allTranslations = {};
+    const allTranslations = {};
     app.log("process get all translations");
-    for (let resourcePath of Object.keys(resources)) {
+    for (const resourcePath of Object.keys(resources)) {
         app.log("process get translations: " + resourcePath);
-        for (let lang of TX_TARGET_LANG) {
+        for (const lang of TX_TARGET_LANG) {
             app.log("process get translations: " + lang);
             if (lang != TX_RESOURCE_LANG) {
                 const result = await txApi.translation(TX_PROJECT_SLUG, resources[resourcePath], lang);
@@ -177,7 +177,7 @@ async function AllTranslations(app, resources) {
  * @param {string} headSha - ヘッドコミットのSHA
  * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
  * @param {Object.<string, string>} translations - キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
- * @returns
+ * @returns {Promise<void>} Promiseのインスタンス
  */
 async function CommitTranslations(app, githubApi, repoOwner, repoName, headSha, headTreeSha, translations) {
     app.log("process commit all translations");
@@ -185,13 +185,11 @@ async function CommitTranslations(app, githubApi, repoOwner, repoName, headSha, 
         owner: repoOwner,
         repo: repoName,
         base_tree: headTreeSha,
-        tree: Object.keys(translations).map(path => {
-            return {
-                path,
-                mode: "100644",
-                content: translations[path]
-            };
-        })
+        tree: Object.keys(translations).map(path => ({
+            path,
+            mode: "100644",
+            content: translations[path]
+        }))
     });
     const commit = await githubApi.gitdata.createCommit({
         owner: repoOwner,
@@ -207,7 +205,6 @@ async function CommitTranslations(app, githubApi, repoOwner, repoName, headSha, 
         sha: commit.data.sha
     });
     app.log("commited all translations");
-    return;
 }
 
 /**
@@ -219,7 +216,7 @@ async function CommitTranslations(app, githubApi, repoOwner, repoName, headSha, 
  * @param {string} headSha - ヘッドコミットのSHA
  * @param {string} state - コミットステータス
  * @param {string} description - コミットステータスの説明
- * @returns
+ * @returns {Promise<void>} Promiseのインスタンス
  */
 async function CreateCommitStatus(app, githubApi, repoOwner, repoName, headSha, state, description) {
     app.log("process update commit status");
@@ -227,29 +224,28 @@ async function CreateCommitStatus(app, githubApi, repoOwner, repoName, headSha, 
         owner: repoOwner,
         repo: repoName,
         sha: headSha,
-        state: state,
-        description: description,
+        state,
+        description,
         context: "txgh-js-bot"
     });
     app.log("updated commit status");
-    return;
 }
 
 module.exports = app => {
-    app.on('push', async context => {
+    app.on("push", async context => {
         if (context.payload.pusher.name.match(/\[bot\]/)) {
             return;
         }
-        var branch = context.payload.ref.replace(/^refs\//, "");
+        const branch = context.payload.ref.replace(/^refs\//, "");
         app.log("request github branch: " + branch);
         app.log("config github branch: " + GITHUB_BRANCH);
-        var branchFilter = new RegExp(GITHUB_BRANCH);
+        const branchFilter = new RegExp(GITHUB_BRANCH);
         if (!branch.match(branchFilter)) {
             return;
         }
-        var repoOwner = context.payload.repository.owner.name;
-        var repoName = context.payload.repository.name;
-        var headSha = context.payload.head_commit.id;
+        const repoOwner = context.payload.repository.owner.name;
+        const repoName = context.payload.repository.name;
+        const headSha = context.payload.head_commit.id;
         await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "pending", "The process has started.");
         const addModResources = AddModResources(app, context.payload.commits);
         await UpdateResources(app, context.github, repoOwner, repoName, addModResources)
@@ -274,4 +270,4 @@ module.exports = app => {
             });
         await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "success", "All processes are completed.");
     });
-}
+};

@@ -1,0 +1,31 @@
+{
+    "extends": "eslint",
+    "parserOptions": {
+        "ecmaVersion": 2017
+    },
+    "rules": {
+        "camelcase": [
+            "error",
+            {
+                "properties": "never"
+            }
+        ],
+        "new-cap": [
+            "error",
+            {
+                "capIsNew": false
+            }
+        ],
+        "padding-line-between-statements": "off",
+        "prefer-template": "off",
+        "space-before-function-paren": [
+            "error",
+            {
+                "anonymous": "always",
+                "named": "never",
+                "asyncArrow": "always"
+            }
+        ],
+        "eqeqeq": 0
+    }
+}

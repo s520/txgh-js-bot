@@ -210,6 +210,31 @@ async function CommitTranslations(app, githubApi, repoOwner, repoName, headSha, 
     return;
 }
 
+/**
+ * コミットステータスを作成する関数
+ * @param {function(): string} app - GitHub App
+ * @param {Object} githubApi - GitHubAPI
+ * @param {string} repoOwner - リポジトリのオーナー名
+ * @param {string} repoName - リポジトリ名
+ * @param {string} headSha - ヘッドコミットのSHA
+ * @param {string} state - コミットステータス
+ * @param {string} description - コミットステータスの説明
+ * @returns
+ */
+async function CreateCommitStatus(app, githubApi, repoOwner, repoName, headSha, state, description) {
+    app.log("process update commit status");
+    await githubApi.repos.createStatus({
+        owner: repoOwner,
+        repo: repoName,
+        sha: headSha,
+        state: state,
+        description: description,
+        context: "txgh-js-bot"
+    });
+    app.log("updated commit status");
+    return;
+}
+
 module.exports = app => {
     app.on('push', async context => {
         if (context.payload.pusher.name.match(/\[bot\]/)) {
@@ -224,10 +249,29 @@ module.exports = app => {
         }
         var repoOwner = context.payload.repository.owner.name;
         var repoName = context.payload.repository.name;
+        var headSha = context.payload.head_commit.id;
+        await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "pending", "The process has started.");
         const addModResources = AddModResources(app, context.payload.commits);
-        await UpdateResources(app, context.github, repoOwner, repoName, addModResources);
-        const allResources = await AllResources(app, context.github, repoOwner, repoName, context.payload.head_commit.tree_id);
-        const allTranslations = await AllTranslations(app, allResources);
-        await CommitTranslations(app, context.github, repoOwner, repoName, context.payload.head_commit.id, context.payload.head_commit.tree_id, allTranslations);
+        await UpdateResources(app, context.github, repoOwner, repoName, addModResources)
+            .catch(async () => {
+                await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Uploading to Transifex failed.");
+                throw new Error("Uploading to Transifex failed.");
+            });
+        const allResources = await AllResources(app, context.github, repoOwner, repoName, context.payload.head_commit.tree_id)
+            .catch(async () => {
+                await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to acquire the path of the target file on GitHub.");
+                throw new Error("Failed to acquire the path of the target file on GitHub.");
+            });
+        const allTranslations = await AllTranslations(app, allResources)
+            .catch(async () => {
+                await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to download the translation file on Transifex.");
+                throw new Error("Failed to download the translation file on Transifex.");
+            });
+        await CommitTranslations(app, context.github, repoOwner, repoName, headSha, context.payload.head_commit.tree_id, allTranslations)
+            .catch(async () => {
+                await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to commit the translation file to GitHub.");
+                throw new Error("Failed to commit the translation file to GitHub.");
+            });
+        await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "success", "All processes are completed.");
     });
 }

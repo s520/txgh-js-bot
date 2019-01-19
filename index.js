@@ -7,6 +7,7 @@ const TX_RESOURCE_REG = process.env.TX_RESOURCE_REG;
 const TX_RESOURCE_LANG = process.env.TX_RESOURCE_LANG;
 const TX_RESOURCE_TYPE = process.env.TX_RESOURCE_TYPE;
 const TX_RESOURCE_EXT = process.env.TX_RESOURCE_EXT;
+const TX_ALL_UPDATE = process.env.TX_ALL_UPDATE || false;
 const TX_TARGET_LANG = process.env.TX_TARGET_LANG.split(",");
 const TX_TARGET_PATH = process.env.TX_TARGET_PATH;
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH;
@@ -110,7 +111,6 @@ async function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
                     file_sha: file.sha
                 });
                 const content = Buffer.from(blob.data.content, blob.data.encoding).toString();
-
                 await UploadResource(resourcePath, content);
                 app.log("updated tx_resource: " + resourcePath);
             }
@@ -118,6 +118,38 @@ async function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
     }
 }
 
+/**
+ * 全てのリソースファイルをGitHubから取得しTransifexへアップロードする関数
+ * @param {function(): string} app - GitHub App
+ * @param {Object} githubApi - GitHubAPI
+ * @param {string} repoOwner - リポジトリのオーナー名
+ * @param {string} repoName - リポジトリ名
+ * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
+ * @returns {Promise<void>} Promiseのインスタンス
+ */
+async function AllUpdateResources(app, githubApi, repoOwner, repoName, headTreeSha) {
+    app.log("process updated all resources");
+    const tree = await githubApi.gitdata.getTree({
+        owner: repoOwner,
+        repo: repoName,
+        tree_sha: headTreeSha,
+        recursive: 1
+    });
+    for (const file of tree.data.tree) {
+        app.log("process each tree entry: " + file.path);
+        if (file.path.match(fileFilter) && file.path.match(extFilter)) {
+            app.log("process resource file: " + file.path);
+            const blob = await githubApi.gitdata.getBlob({
+                owner: repoOwner,
+                repo: repoName,
+                file_sha: file.sha
+            });
+            const content = Buffer.from(blob.data.content, blob.data.encoding).toString();
+            await UploadResource(file.path, content);
+            app.log("updated tx_resource: " + file.path);
+        }
+    }
+}
 
 /**
  * ヘッドコミットのgit treeに存在する対象ファイルのファイルパスとリソースSlugを取得する関数
@@ -246,14 +278,23 @@ module.exports = app => {
         const repoOwner = context.payload.repository.owner.name;
         const repoName = context.payload.repository.name;
         const headSha = context.payload.head_commit.id;
+        const headTreeSha = context.payload.head_commit.tree_id;
         await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "pending", "The process has started.");
-        const addModResources = AddModResources(app, context.payload.commits);
-        await UpdateResources(app, context.github, repoOwner, repoName, addModResources)
-            .catch(async () => {
-                await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Uploading to Transifex failed.");
-                throw new Error("Uploading to Transifex failed.");
-            });
-        const allResources = await AllResources(app, context.github, repoOwner, repoName, context.payload.head_commit.tree_id)
+        if (!TX_ALL_UPDATE) {
+            const addModResources = AddModResources(app, context.payload.commits);
+            await UpdateResources(app, context.github, repoOwner, repoName, addModResources)
+                .catch(async () => {
+                    await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to upload to Transifex.");
+                    throw new Error("Failed to upload to Transifex.");
+                });
+        } else {
+            await AllUpdateResources(app, context.github, repoOwner, repoName, headTreeSha)
+                .catch(async () => {
+                    await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to upload all resource files to Transifex.");
+                    throw new Error("Failed to upload all resource files to Transifex.");
+                });
+        }
+        const allResources = await AllResources(app, context.github, repoOwner, repoName, headTreeSha)
             .catch(async () => {
                 await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to acquire the path of the target file on GitHub.");
                 throw new Error("Failed to acquire the path of the target file on GitHub.");
@@ -263,7 +304,7 @@ module.exports = app => {
                 await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to download the translation file on Transifex.");
                 throw new Error("Failed to download the translation file on Transifex.");
             });
-        await CommitTranslations(app, context.github, repoOwner, repoName, headSha, context.payload.head_commit.tree_id, allTranslations)
+        await CommitTranslations(app, context.github, repoOwner, repoName, headSha, headTreeSha, allTranslations)
             .catch(async () => {
                 await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to commit the translation file to GitHub.");
                 throw new Error("Failed to commit the translation file to GitHub.");

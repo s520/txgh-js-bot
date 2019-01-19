@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "probot": "^7.2.0",
-    "extend": "^3.0.2",
     "transifex-js-client": "git+https://github.com/s520/transifex-js-client.git",
     "string-replace-async": "^1.2.1"
   },

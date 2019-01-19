@@ -22,6 +22,12 @@ const fileFilter = new RegExp(TX_RESOURCE_REG.replace(new RegExp("<lang>", "g"),
 const extFilter = new RegExp("\\" + TX_RESOURCE_EXT);
 const pathToSlug = new RegExp("/|\\.", "g");
 
+/**
+ * Pushイベントに含まれるコミットで追加or編集され且つTransifexへアップロードすべきファイルを検出する関数
+ * @param {function(): string} app - GitHub App
+ * @param {Array.<Object>} commits - Pushイベントに含まれるコミットオブジェクトの配列
+ * @returns {Object.<string, string>} キーがファイルパス、値がgit treeのSHA、のオブジェクト
+ */
 function AddModResources(app, commits) {
     var addModResources = {};
     for (let commit of commits) {
@@ -42,6 +48,15 @@ function AddModResources(app, commits) {
     return addModResources
 }
 
+/**
+ * 対象ファイルをGitHubから取得しTransifexへアップロードする関数
+ * @param {function(): string} app - GitHub App
+ * @param {Object} githubApi - GitHubAPI
+ * @param {string} repoOwner - リポジトリのオーナー名
+ * @param {string} repoName - リポジトリ名
+ * @param {Object.<string, string>} resources - キーがファイルパス、値がgit treeのSHA、のオブジェクト
+ * @returns
+ */
 async function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
     for (let resourcePath of Object.keys(resources)) {
         app.log("process updated resource");
@@ -69,12 +84,23 @@ async function UpdateResources(app, githubApi, repoOwner, repoName, resources) {
     return;
 }
 
+/**
+ * ファイルパスからTransifexのリソースSlugを生成する関数
+ * @param {string} resourcePath - ファイルパス
+ * @returns {string} TransifexのリソースSlug
+ */
 async function GenarateResourceSlug(resourcePath) {
     const resource = await stringReplaceAsync(resourcePath, fileFilter, "");
     const resourceSlug = await stringReplaceAsync(resource, pathToSlug, "-");
     return (resourceSlug);
 }
 
+/**
+ * Transifexに存在しないファイルは新規に作成し、既存のファイルはアップデートする関数
+ * @param {string} resourcePath - リソースファイルのファイルパス
+ * @param {string} content - リソースファイルの中身
+ * @returns
+ */
 async function UploadResource(resourcePath, content) {
     const resourceSlug = await GenarateResourceSlug(resourcePath);
     await txApi.resource(TX_PROJECT_SLUG, resourceSlug)
@@ -93,6 +119,15 @@ async function UploadResource(resourcePath, content) {
     return;
 }
 
+/**
+ * ヘッドコミットのgit treeに存在する対象ファイルのファイルパスとリソースSlugを取得する関数
+ * @param {function(): string} app - GitHub App
+ * @param {Object} githubApi - GitHubAPI
+ * @param {string} repoOwner - リポジトリのオーナー名
+ * @param {string} repoName - リポジトリ名
+ * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
+ * @returns {Object.<string, string>} キーがファイルパス、値がリソースSlug、のオブジェクト
+ */
 async function AllResources(app, githubApi, repoOwner, repoName, headTreeSha) {
     var allResources = {};
     const tree = await githubApi.gitdata.getTree({
@@ -110,6 +145,12 @@ async function AllResources(app, githubApi, repoOwner, repoName, headTreeSha) {
     return (allResources);
 }
 
+/**
+ * Transifexから対象ファイルの翻訳ファイルを取得する関数
+ * @param {function(): string} app - GitHub App
+ * @param {Object.<string, string>} resources - キーがファイルパス、値がリソースSlug、のオブジェクト
+ * @returns {Object.<string, string>} キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
+ */
 async function AllTranslations(app, resources) {
     var allTranslations = {};
     app.log("process get all translations");
@@ -127,6 +168,17 @@ async function AllTranslations(app, resources) {
     return (allTranslations);
 }
 
+/**
+ * 翻訳ファイルをGitHubへコミットする関数
+ * @param {function(): string} app - GitHub App
+ * @param {Object} githubApi - GitHubAPI
+ * @param {string} repoOwner - リポジトリのオーナー名
+ * @param {string} repoName - リポジトリ名
+ * @param {string} headSha - ヘッドコミットのSHA
+ * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
+ * @param {Object.<string, string>} translations - キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
+ * @returns
+ */
 async function CommitTranslations(app, githubApi, repoOwner, repoName, headSha, headTreeSha, translations) {
     app.log("process commit all translations");
     const tree = await githubApi.gitdata.createTree({

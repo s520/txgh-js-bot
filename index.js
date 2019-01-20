@@ -8,7 +8,6 @@ const TX_RESOURCE_LANG = process.env.TX_RESOURCE_LANG;
 const TX_RESOURCE_TYPE = process.env.TX_RESOURCE_TYPE;
 const TX_RESOURCE_EXT = process.env.TX_RESOURCE_EXT;
 const TX_ALL_UPDATE = process.env.TX_ALL_UPDATE || false;
-const TX_TARGET_LANG = process.env.TX_TARGET_LANG.split(",");
 const TX_TARGET_PATH = process.env.TX_TARGET_PATH;
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH;
 
@@ -178,17 +177,30 @@ const AllResources = async (app, githubApi, repoOwner, repoName, headTreeSha) =>
 };
 
 /**
+ * Transifexの翻訳対象言語のリストを取得する関数
+ * @param {function(): string} app - GitHub App
+ * @returns {Promise<Array.<string>>} 翻訳対象言語のリスト
+ */
+const AllLanguages = async (app) => {
+    app.log("process get all languages");
+    const result = await txApi.project(TX_PROJECT_SLUG);
+    app.log("got all languages");
+    return result.data.teams;
+};
+
+/**
  * Transifexから対象ファイルの翻訳ファイルを取得する関数
  * @param {function(): string} app - GitHub App
  * @param {Object.<string, string>} resources - キーがファイルパス、値がリソースSlug、のオブジェクト
+ * @param {Array.<string>} languages - 翻訳対象言語のリスト
  * @returns {Promise<Object.<string, string>>} キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
  */
-const AllTranslations = async (app, resources) => {
+const AllTranslations = async (app, resources, languages) => {
     const allTranslations = {};
     app.log("process get all translations");
     for (const [resourcePath, resourceSlug] of Object.entries(resources)) {
         app.log("process get translations: " + resourcePath);
-        for (const lang of TX_TARGET_LANG) {
+        for (const lang of languages) {
             app.log("process get translations: " + lang);
             if (lang != TX_RESOURCE_LANG) {
                 const result = await txApi.translation(TX_PROJECT_SLUG, resourceSlug, lang);
@@ -299,7 +311,12 @@ module.exports = app => {
                 await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to acquire the path of the target file on GitHub.");
                 throw new Error("Failed to acquire the path of the target file on GitHub.");
             });
-        const allTranslations = await AllTranslations(app, allResources)
+        const allLanguages = await AllLanguages(app)
+            .catch(async () => {
+                await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to get the list of languages to be translated from Transifex.");
+                throw new Error("Failed to get the list of languages to be translated from Transifex.");
+            });
+        const allTranslations = await AllTranslations(app, allResources, allLanguages)
             .catch(async () => {
                 await CreateCommitStatus(app, context.github, repoOwner, repoName, headSha, "failure", "Failed to download the translation file on Transifex.");
                 throw new Error("Failed to download the translation file on Transifex.");

@@ -27,6 +27,7 @@
   "devDependencies": {
     "eslint": "^5.12.1",
     "eslint-config-eslint": "^5.0.1",
+    "eslint-plugin-jsdoc": "^4.0.0",
     "jest": "^22.4.3",
     "nock": "^10.0.0",
     "nodemon": "^1.17.2",

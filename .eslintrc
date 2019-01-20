@@ -1,8 +1,14 @@
 {
-    "extends": "eslint",
+    "extends": [
+        "eslint",
+        "plugin:jsdoc/recommended"
+    ],
     "parserOptions": {
         "ecmaVersion": 2017
     },
+    "plugins": [
+        "jsdoc"
+    ],
     "rules": {
         "camelcase": [
             "error",
@@ -26,6 +32,14 @@
                 "asyncArrow": "always"
             }
         ],
-        "eqeqeq": 0
+        "eqeqeq": "off",
+        "func-style": [
+            "error",
+            "declaration",
+            {
+                "allowArrowFunctions": true
+            }
+        ],
+        "arrow-parens": "off"
     }
 }

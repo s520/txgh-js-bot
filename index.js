@@ -93,12 +93,12 @@ const UploadResource = async (resourcePath, content) => {
  * @returns {Promise<void>} Promiseのインスタンス
  */
 const UpdateResources = async (app, githubApi, repoOwner, repoName, resources) => {
-    for (const resourcePath of Object.keys(resources)) {
+    for (const [resourcePath, treeSha] of Object.entries(resources)) {
         app.log("process updated resource");
         const tree = await githubApi.gitdata.getTree({
             owner: repoOwner,
             repo: repoName,
-            tree_sha: resources[resourcePath],
+            tree_sha: treeSha,
             recursive: 1
         });
         for (const file of tree.data.tree) {
@@ -186,12 +186,12 @@ const AllResources = async (app, githubApi, repoOwner, repoName, headTreeSha) =>
 const AllTranslations = async (app, resources) => {
     const allTranslations = {};
     app.log("process get all translations");
-    for (const resourcePath of Object.keys(resources)) {
+    for (const [resourcePath, resourceSlug] of Object.entries(resources)) {
         app.log("process get translations: " + resourcePath);
         for (const lang of TX_TARGET_LANG) {
             app.log("process get translations: " + lang);
             if (lang != TX_RESOURCE_LANG) {
-                const result = await txApi.translation(TX_PROJECT_SLUG, resources[resourcePath], lang);
+                const result = await txApi.translation(TX_PROJECT_SLUG, resourceSlug, lang);
                 allTranslations[resourcePath.replace(fileFilter, TX_TARGET_PATH.replace(new RegExp("<lang>", "g"), lang))] = result.data;
                 app.log("got translation:" + resourcePath);
             }

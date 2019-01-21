@@ -1,55 +1,60 @@
 {
-  "name": "txgh-js-bot",
-  "version": "1.0.0",
-  "description": "When a push event occurs, upload the source file to Transifex and commit the translation file to GitHub.",
-  "author": "s520 <sony.pcv.s520@gmail.com> (https://github.com/s520)",
-  "license": "ISC",
-  "repository": "https://github.com/s520/txgh-js-bot.git",
-  "homepage": "https://github.com/s520/txgh-js-bot",
-  "bugs": "https://github.com/s520/txgh-js-bot/issues",
-  "keywords": [
-    "probot",
-    "github",
-    "probot-app"
-  ],
-  "scripts": {
-    "dev": "nodemon",
-    "start": "probot run ./index.js",
-    "lint": "standard --fix",
-    "test": "jest && standard",
-    "test:watch": "jest --watch --notify --notifyMode=change --coverage"
-  },
-  "dependencies": {
-    "probot": "^7.2.0",
-    "transifex-js-client": "git+https://github.com/s520/transifex-js-client.git",
-    "string-replace-async": "^1.2.1"
-  },
-  "devDependencies": {
-    "eslint": "^5.12.1",
-    "eslint-config-eslint": "^5.0.1",
-    "eslint-plugin-jsdoc": "^4.0.0",
-    "jest": "^22.4.3",
-    "nock": "^10.0.0",
-    "nodemon": "^1.17.2",
-    "smee-client": "^1.0.2",
-    "standard": "^10.0.3"
-  },
-  "engines": {
-    "node": ">= 8.3.0 < 9.0.0"
-  },
-  "standard": {
-    "env": [
-      "jest"
-    ]
-  },
-  "nodemonConfig": {
-    "exec": "npm start",
-    "watch": [
-      ".env",
-      "."
-    ]
-  },
-  "jest": {
-    "testEnvironment": "node"
-  }
+    "name": "txgh-js-bot",
+    "version": "1.0.0",
+    "description": "When a push event occurs, upload the source file to Transifex and commit the translation file to GitHub.",
+    "author": "s520 <sony.pcv.s520@gmail.com> (https://github.com/s520)",
+    "license": "ISC",
+    "repository": "https://github.com/s520/txgh-js-bot.git",
+    "homepage": "https://github.com/s520/txgh-js-bot",
+    "bugs": "https://github.com/s520/txgh-js-bot/issues",
+    "keywords": [
+        "github",
+        "transifex"
+    ],
+    "scripts": {
+        "dev": "nodemon",
+        "start": "node ./index.js",
+        "lint": "standard --fix",
+        "test": "jest && standard",
+        "test:watch": "jest --watch --notify --notifyMode=change --coverage"
+    },
+    "dependencies": {
+        "@octokit/webhooks": "^5.1.2",
+        "bunyan": "^1.8.12",
+        "bunyan-format": "^0.2.1",
+        "dotenv": "^6.2.0",
+        "express": "^4.16.4",
+        "github-app": "^4.0.1",
+        "string-replace-async": "^1.2.1",
+        "supports-color": "^6.1.0",
+        "transifex-js-client": "git+https://github.com/s520/transifex-js-client.git"
+    },
+    "devDependencies": {
+        "eslint": "^5.12.1",
+        "eslint-config-eslint": "^5.0.1",
+        "eslint-plugin-jsdoc": "^4.0.0",
+        "jest": "^22.4.3",
+        "nock": "^10.0.0",
+        "nodemon": "^1.17.2",
+        "smee-client": "^1.0.2",
+        "standard": "^10.0.3"
+    },
+    "engines": {
+        "node": ">= 8.3.0 < 9.0.0"
+    },
+    "standard": {
+        "env": [
+            "jest"
+        ]
+    },
+    "nodemonConfig": {
+        "exec": "npm start",
+        "watch": [
+            ".env",
+            "."
+        ]
+    },
+    "jest": {
+        "testEnvironment": "node"
+    }
 }

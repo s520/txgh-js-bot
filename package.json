@@ -20,11 +20,13 @@
     },
     "dependencies": {
         "@octokit/webhooks": "^5.1.2",
+        "body-parser": "^1.18.3",
         "bunyan": "^1.8.12",
         "bunyan-format": "^0.2.1",
         "dotenv": "^6.2.0",
         "express": "^4.16.4",
         "github-app": "^4.0.1",
+        "md5": "^2.2.1",
         "string-replace-async": "^1.2.1",
         "supports-color": "^6.1.0",
         "transifex-js-client": "git+https://github.com/s520/transifex-js-client.git"

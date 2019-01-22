@@ -263,13 +263,17 @@ const VerifySHA1 = async (githubApi, path, newContent) => {
     const shasum = crypto.createHash("sha1");
     const lengh = Buffer.byteLength(newContent);
     const newHash = shasum.update(Buffer.from("blob " + lengh + "\x00" + newContent)).digest("hex");
-    const currentContent = await githubApi.repos.getContents({
-        owner: GITHUB_REPO_OWNER,
-        repo: GITHUB_REPO_NAME,
-        path,
-        ref: GITHUB_BRANCH
-    });
-    return newHash == currentContent.data.sha;
+    try {
+        const currentContent = await githubApi.repos.getContents({
+            owner: GITHUB_REPO_OWNER,
+            repo: GITHUB_REPO_NAME,
+            path,
+            ref: GITHUB_BRANCH
+        });
+        return newHash == currentContent.data.sha;
+    } catch (err) {
+        return false;
+    }
 };
 
 /**
@@ -289,12 +293,8 @@ const AllTranslations = async (githubApi, resources, languages) => {
             if (lang != TX_RESOURCE_LANG) {
                 const result = await txApi.translation(TX_PROJECT_SLUG, resourceSlug, lang);
                 const filePath = resourcePath.replace(fileFilter, TX_TARGET_PATH.replace(new RegExp("<lang>", "g"), lang));
-                try {
-                    const verify = await VerifySHA1(githubApi, filePath, result.data);
-                    if (!verify) {
-                        allTranslations[filePath] = result.data;
-                    }
-                } catch (err) {
+                const verify = await VerifySHA1(githubApi, filePath, result.data);
+                if (!verify) {
                     allTranslations[filePath] = result.data;
                 }
                 logger.info("got translation:" + resourcePath);

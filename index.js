@@ -289,7 +289,12 @@ const AllTranslations = async (githubApi, resources, languages) => {
             if (lang != TX_RESOURCE_LANG) {
                 const result = await txApi.translation(TX_PROJECT_SLUG, resourceSlug, lang);
                 const filePath = resourcePath.replace(fileFilter, TX_TARGET_PATH.replace(new RegExp("<lang>", "g"), lang));
-                if (!VerifySHA1(githubApi, filePath, result.data)) {
+                try {
+                    const verify = await VerifySHA1(githubApi, filePath, result.data);
+                    if (!verify) {
+                        allTranslations[filePath] = result.data;
+                    }
+                } catch (err) {
                     allTranslations[filePath] = result.data;
                 }
                 logger.info("got translation:" + resourcePath);

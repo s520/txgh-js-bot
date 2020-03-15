@@ -9,7 +9,7 @@ const TX_RESOURCE_REG = process.env.TX_RESOURCE_REG;
 const TX_RESOURCE_LANG = process.env.TX_RESOURCE_LANG;
 const TX_RESOURCE_TYPE = process.env.TX_RESOURCE_TYPE;
 const TX_RESOURCE_EXT = process.env.TX_RESOURCE_EXT;
-const TX_ALL_UPDATE = process.env.TX_ALL_UPDATE || false;
+const TX_ALL_UPDATE = process.env.TX_ALL_UPDATE.toLowerCase() == "true" || false;
 const TX_TARGET_PATH = process.env.TX_TARGET_PATH;
 const TX_WEBHOOK_PATH = "/transifex";
 const GITHUB_INSTALL_ID = process.env.GITHUB_INSTALL_ID;
@@ -235,7 +235,7 @@ const AllResources = async (githubApi, headTreeSha) => {
     });
     for (const file of tree.data.tree) {
         if (file.path.match(fileFilter) && file.path.match(extFilter)) {
-            logger.info("processing resource file: " + file);
+            logger.info("processing resource file: " + file.path);
             allResources[file.path] = await GenarateResourceSlug(file.path);
         }
     }
@@ -379,7 +379,6 @@ githubWebhooks.on("push", async event => {
     const headSha = event.payload.head_commit.id;
     const headTreeSha = event.payload.head_commit.tree_id;
 
-    await CreateCommitStatus(github, headSha, "pending", "The process has started.");
     await CreateCommitStatus(github, headSha, "pending", "Updating files of Transifex.");
 
     logger.info("process update resource");

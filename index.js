@@ -75,10 +75,10 @@ const bodyParser = require("body-parser");
 server.use(TX_WEBHOOK_PATH, bodyParser.raw({ type: "application/json" }));
 
 /**
- * TransifexのWebhookを検証する関数
- * @param {Object} req - Webhookへのリクエスト
- * @param {string} secret - Webhookの秘密鍵
- * @returns {boolean} 検証結果
+ * Function to verify Transifex's Webhook
+ * @param {Object} req - Request to Webhook
+ * @param {string} secret - Webhook's private key
+ * @returns {boolean} Verification result
  */
 const VerifyTxWebhook = (req, secret) => {
     const actualSig = req.headers["x-tx-signature-v2"];
@@ -99,34 +99,35 @@ const extFilter = new RegExp("\\" + TX_RESOURCE_EXT);
 const pathToSlug = new RegExp("/|\\.", "g");
 
 /**
- * Pushイベントに含まれるコミットで追加or編集され且つTransifexへアップロードすべきファイルを検出する関数
- * @param {Array.<Object>} commits - Pushイベントに含まれるコミットオブジェクトの配列
- * @returns {Object.<string, string>} キーがファイルパス、値がgit treeのSHA、のオブジェクト
+ * Function to detect files that are added or edited by the commit included in the Push event and should be uploaded to Transifex
+ * @param {Array.<Object>} commits - Array of commit objects included in the Push event
+ * @returns {Object.<string, string>} An object whose key is the file path and whose value is the SHA of the git tree
  */
 const AddModResources = (commits) => {
     const addModResources = {};
     for (const commit of commits) {
-        logger.info("processing commit");
+        logger.info("process commit: " + commit.id);
         for (const file of commit.added) {
-            logger.info("processing added file: " + file);
             if (file.match(fileFilter) && file.match(extFilter)) {
+                logger.info("processing added file: " + file);
                 addModResources[file] = commit.tree_id;
             }
         }
         for (const file of commit.modified) {
-            logger.info("processing modified file: " + file);
             if (file.match(fileFilter) && file.match(extFilter)) {
+                logger.info("processing modified file: " + file);
                 addModResources[file] = commit.tree_id;
             }
         }
+        logger.info("processed commit: " + commit.id);
     }
     return addModResources;
 };
 
 /**
- * ファイルパスからTransifexのリソースSlugを生成する関数
- * @param {string} resourcePath - ファイルパス
- * @returns {Promise<string>} TransifexのリソースSlug
+ * Function to generate Transifex's resource slug from file path
+ * @param {string} resourcePath - File path of resource file
+ * @returns {Promise<string>} Transifex's resource slug
  */
 const GenarateResourceSlug = async (resourcePath) => {
     const resource = await stringReplaceAsync(resourcePath, fileFilter, "");
@@ -135,10 +136,10 @@ const GenarateResourceSlug = async (resourcePath) => {
 };
 
 /**
- * Transifexに存在しないファイルは新規に作成し、既存のファイルはアップデートする関数
- * @param {string} resourcePath - リソースファイルのファイルパス
- * @param {string} content - リソースファイルの中身
- * @returns {Promise<void>} Promiseのインスタンス
+ * Function to create new files that do not exist in Transifex and update existing files
+ * @param {string} resourcePath - File path of resource file
+ * @param {string} content - The contents of the resource file
+ * @returns {Promise<void>} Instance of Promise
  */
 const UploadResource = async (resourcePath, content) => {
     const resourceSlug = await GenarateResourceSlug(resourcePath);
@@ -157,14 +158,14 @@ const UploadResource = async (resourcePath, content) => {
 };
 
 /**
- * 対象ファイルをGitHubから取得しTransifexへアップロードする関数
+ * Function to get the target file from GitHub and upload it to Transifex
  * @param {Object} githubApi - GitHubAPI
- * @param {Object.<string, string>} resources - キーがファイルパス、値がgit treeのSHA、のオブジェクト
- * @returns {Promise<void>} Promiseのインスタンス
+ * @param {Object.<string, string>} resources - An object whose key is the file path and whose value is the SHA of the git tree
+ * @returns {Promise<void>} Instance of Promise
  */
 const UpdateResources = async (githubApi, resources) => {
     for (const [resourcePath, treeSha] of Object.entries(resources)) {
-        logger.info("process updated resource");
+        logger.info("process update resource file:" + resourcePath);
         const tree = await githubApi.gitdata.getTree({
             owner: GITHUB_REPO_OWNER,
             repo: GITHUB_REPO_NAME,
@@ -172,9 +173,8 @@ const UpdateResources = async (githubApi, resources) => {
             recursive: 1
         });
         for (const file of tree.data.tree) {
-            logger.info("process each tree entry: " + file.path);
             if (file.path == resourcePath) {
-                logger.info("process resource file: " + resourcePath);
+                logger.info("process upload resource file:" + resourcePath);
                 const blob = await githubApi.gitdata.getBlob({
                     owner: GITHUB_REPO_OWNER,
                     repo: GITHUB_REPO_NAME,
@@ -182,20 +182,21 @@ const UpdateResources = async (githubApi, resources) => {
                 });
                 const content = Buffer.from(blob.data.content, blob.data.encoding).toString();
                 await UploadResource(resourcePath, content);
-                logger.info("updated tx_resource: " + resourcePath);
+                logger.info("uploaded resource file: " + resourcePath);
             }
         }
+        logger.info("updated resource file: " + resourcePath);
     }
 };
 
 /**
- * 全てのリソースファイルをGitHubから取得しTransifexへアップロードする関数
+ * Function to get all resource files from GitHub and upload to Transifex
  * @param {Object} githubApi - GitHubAPI
- * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
- * @returns {Promise<void>} Promiseのインスタンス
+ * @param {string} headTreeSha - The SHA of git tree of head commit
+ * @returns {Promise<void>} Instance of Promise
  */
 const AllUpdateResources = async (githubApi, headTreeSha) => {
-    logger.info("process updated all resources");
+    logger.info("process update all resources");
     const tree = await githubApi.gitdata.getTree({
         owner: GITHUB_REPO_OWNER,
         repo: GITHUB_REPO_NAME,
@@ -203,9 +204,8 @@ const AllUpdateResources = async (githubApi, headTreeSha) => {
         recursive: 1
     });
     for (const file of tree.data.tree) {
-        logger.info("process each tree entry: " + file.path);
         if (file.path.match(fileFilter) && file.path.match(extFilter)) {
-            logger.info("process resource file: " + file.path);
+            logger.info("process upload resource file: " + file.path);
             const blob = await githubApi.gitdata.getBlob({
                 owner: GITHUB_REPO_OWNER,
                 repo: GITHUB_REPO_NAME,
@@ -213,16 +213,17 @@ const AllUpdateResources = async (githubApi, headTreeSha) => {
             });
             const content = Buffer.from(blob.data.content, blob.data.encoding).toString();
             await UploadResource(file.path, content);
-            logger.info("updated tx_resource: " + file.path);
+            logger.info("uploaded resource file: " + file.path);
         }
     }
+    logger.info("updated all resources");
 };
 
 /**
- * ヘッドコミットのgit treeに存在する対象ファイルのファイルパスとリソースSlugを取得する関数
+ * Function to get the file path and resource slug of the target file that exists in the git tree of the head commit
  * @param {Object} githubApi - GitHubAPI
- * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
- * @returns {Promise<Object.<string, string>>} キーがファイルパス、値がリソースSlug、のオブジェクト
+ * @param {string} headTreeSha - The SHA of git tree of head commit
+ * @returns {Promise<Object.<string, string>>} An object whose key is the file path and whose value is the resource slug
  */
 const AllResources = async (githubApi, headTreeSha) => {
     const allResources = {};
@@ -233,8 +234,8 @@ const AllResources = async (githubApi, headTreeSha) => {
         recursive: 1
     });
     for (const file of tree.data.tree) {
-        logger.info("process each tree entry: " + file.path);
         if (file.path.match(fileFilter) && file.path.match(extFilter)) {
+            logger.info("processing resource file: " + file);
             allResources[file.path] = await GenarateResourceSlug(file.path);
         }
     }
@@ -242,22 +243,20 @@ const AllResources = async (githubApi, headTreeSha) => {
 };
 
 /**
- * Transifexの翻訳対象言語のリストを取得する関数
- * @returns {Promise<Array.<string>>} 翻訳対象言語のリスト
+ * Function to get list of Transifex's translation target languages
+ * @returns {Promise<Array.<string>>} List of languages to translate
  */
 const AllLanguages = async () => {
-    logger.info("process get all languages");
     const result = await txApi.project(TX_PROJECT_SLUG);
-    logger.info("got all languages");
     return result.data.teams;
 };
 
 /**
- * ファイルのSHA1がGitHub上のファイルのものと一致するか確認する関数
+ * Function to check if the SHA1 of the file matches that of the file on GitHub
  * @param {Object} githubApi - GitHubAPI
- * @param {string} path - GitHub上のファイルパス
- * @param {string} newContent ファイルの文字列
- * @returns {Promise<boolean>} 検証結果
+ * @param {string} path - File path on GitHub
+ * @param {string} newContent - String of file
+ * @returns {Promise<boolean>} Verification result
  */
 const VerifySHA1 = async (githubApi, path, newContent) => {
     const shasum = crypto.createHash("sha1");
@@ -277,20 +276,19 @@ const VerifySHA1 = async (githubApi, path, newContent) => {
 };
 
 /**
- * Transifexから対象ファイルの翻訳ファイルを取得する関数
+ * Function to get the translation file of the target file from Transifex
  * @param {Object} githubApi - GitHubAPI
- * @param {Object.<string, string>} resources - キーがファイルパス、値がリソースSlug、のオブジェクト
- * @param {Array.<string>} languages - 翻訳対象言語のリスト
- * @returns {Promise<Object.<string, string>>} キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
+ * @param {Object.<string, string>} resources - An object whose key is the file path and whose value is the resource slug
+ * @param {Array.<string>} languages - List of languages to translate
+ * @returns {Promise<Object.<string, string>>} An object whose key is the translation file path and whose value is the contents of the translation file
  */
 const AllTranslations = async (githubApi, resources, languages) => {
     const allTranslations = {};
-    logger.info("process get all translations");
     for (const [resourcePath, resourceSlug] of Object.entries(resources)) {
         logger.info("process get translations: " + resourcePath);
         for (const lang of languages) {
-            logger.info("process get translations: " + lang);
             if (lang != TX_RESOURCE_LANG) {
+                logger.info("process get translation: " + lang);
                 const result = await txApi.translation(TX_PROJECT_SLUG, resourceSlug, lang);
                 const filePath = resourcePath.replace(fileFilter, TX_TARGET_PATH.replace(new RegExp("<lang>", "g"), lang));
                 const verify = await VerifySHA1(githubApi, filePath, result.data);
@@ -305,15 +303,14 @@ const AllTranslations = async (githubApi, resources, languages) => {
 };
 
 /**
- * 翻訳ファイルをGitHubへコミットする関数
+ * Function to commit the translation files to GitHub
  * @param {Object} githubApi - GitHubAPI
- * @param {string} headSha - ヘッドコミットのSHA
- * @param {string} headTreeSha - ヘッドコミットのgit treeのSHA
- * @param {Object.<string, string>} translations - キーが翻訳ファイルパス、値が翻訳ファイルの中身、のオブジェクト
- * @returns {Promise<void>} Promiseのインスタンス
+ * @param {string} headSha - The SHA of head commit
+ * @param {string} headTreeSha - The SHA of git tree of head commit
+ * @param {Object.<string, string>} translations - An object whose key is the translation file path and whose value is the contents of the translation file
+ * @returns {Promise<void>} Instance of Promise
  */
 const CommitTranslations = async (githubApi, headSha, headTreeSha, translations) => {
-    logger.info("process commit all translations");
     if (Object.keys(translations).length > 0) {
         const tree = await githubApi.gitdata.createTree({
             owner: GITHUB_REPO_OWNER,
@@ -339,16 +336,15 @@ const CommitTranslations = async (githubApi, headSha, headTreeSha, translations)
             sha: commit.data.sha
         });
     }
-    logger.info("commited all translations");
 };
 
 /**
- * コミットステータスを作成する関数
+ * Function to create commit status
  * @param {Object} githubApi - GitHubAPI
- * @param {string} headSha - ヘッドコミットのSHA
- * @param {string} state - コミットステータス
- * @param {string} description - コミットステータスの説明
- * @returns {Promise<void>} Promiseのインスタンス
+ * @param {string} headSha - The SHA of head commit
+ * @param {string} state - Commit status
+ * @param {string} description - Description of commit status
+ * @returns {Promise<void>} Instance of Promise
  */
 const CreateCommitStatus = async (githubApi, headSha, state, description) => {
     logger.info("process update commit status");
@@ -382,7 +378,11 @@ githubWebhooks.on("push", async event => {
     const github = await app.asInstallation(GITHUB_INSTALL_ID);
     const headSha = event.payload.head_commit.id;
     const headTreeSha = event.payload.head_commit.tree_id;
+
     await CreateCommitStatus(github, headSha, "pending", "The process has started.");
+    await CreateCommitStatus(github, headSha, "pending", "Updating files of Transifex.");
+
+    logger.info("process update resource");
     if (!TX_ALL_UPDATE) {
         const addModResources = AddModResources(event.payload.commits);
         await UpdateResources(github, addModResources)
@@ -401,6 +401,11 @@ githubWebhooks.on("push", async event => {
                 throw new Error(message);
             });
     }
+    logger.info("updated resource");
+
+    await CreateCommitStatus(github, headSha, "pending", "Committing files to GitHub.");
+
+    logger.info("process get all resources");
     const allResources = await AllResources(github, headTreeSha)
         .catch(async () => {
             const message = "Failed to acquire the path of the target file on GitHub.";
@@ -408,6 +413,9 @@ githubWebhooks.on("push", async event => {
             logger.fatal(message);
             throw new Error(message);
         });
+    logger.info("got all resources");
+
+    logger.info("process get all languages");
     const allLanguages = await AllLanguages()
         .catch(async () => {
             const message = "Failed to get the list of languages to be translated from Transifex.";
@@ -415,6 +423,9 @@ githubWebhooks.on("push", async event => {
             logger.fatal(message);
             throw new Error(message);
         });
+    logger.info("got all languages");
+
+    logger.info("process get all translations");
     const allTranslations = await AllTranslations(github, allResources, allLanguages)
         .catch(async () => {
             const message = "Failed to download the translation file on Transifex.";
@@ -422,6 +433,9 @@ githubWebhooks.on("push", async event => {
             logger.fatal(message);
             throw new Error(message);
         });
+    logger.info("got all translations");
+
+    logger.info("process commit all translations");
     await CommitTranslations(github, headSha, headTreeSha, allTranslations)
         .catch(async () => {
             const message = "Failed to commit the translation file to GitHub.";
@@ -429,6 +443,8 @@ githubWebhooks.on("push", async event => {
             logger.fatal(message);
             throw new Error(message);
         });
+    logger.info("commited all translations");
+
     await CreateCommitStatus(github, headSha, "success", "All processes are completed.");
 });
 
@@ -473,6 +489,16 @@ server.post(TX_WEBHOOK_PATH, async (req, res) => {
 
     const translationPath = resource.data.name.replace(fileFilter, TX_TARGET_PATH.replace(new RegExp("<lang>", "g"), lang));
     const github = await app.asInstallation(GITHUB_INSTALL_ID);
+
+    logger.info("process verify that it does not match the file on GitHub");
+    const verifyFile = await VerifySHA1(github, translationPath, translation.data);
+
+    if (verifyFile) {
+        logger.warn("The commit is skipped because it matched the file on GitHub");
+        res.status(200).send("OK");
+        return;
+    }
+    logger.info("verified that it does not match the file on GitHub");
 
     logger.info("process get information on translation file from GitHub");
     const content = await github.repos.getContents({
